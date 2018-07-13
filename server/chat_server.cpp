@@ -64,8 +64,8 @@ public:
     globalId ++;
     chat_message msg;
     Json::Value jsonValue;
-    jsonValue["engineID"] = participant->remoteEngineId;;
-    jsonValue["queryName"] = "engineID";
+    jsonValue["engineId"] = participant->remoteEngineId;;
+    jsonValue["queryName"] = "engineId";
     jsonValue["contentVec"] = "";
     std::string str = jsonValue.toStyledString();
     msg.body_length(str.length());
@@ -180,7 +180,9 @@ public:
           std::cout << "Failed to parse" << jsonReader.getFormattedErrorMessages();
       }
       int engineId = jval["engineId"].asInt();
-      int contentVec = jval["contentVec"].asInt();
+      int mes_id = jval["mes_id"].asInt();
+      unsigned long face_id = (unsigned long)jval["face_id"].asInt();
+
       // xu ly doan query o day
       //sau khi xu ly xong, nhan duoc du lieu
 
