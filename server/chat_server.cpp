@@ -42,6 +42,17 @@ char *get_json_value(char *val, size_t size){
     return ret;
 }
 
+QUERYNAME get_query_name_from_string(std::string name){
+  if(name.compare("1") == 0) return SEARCH;
+  else if(name.compare("0") == 0) return ENGINEID;
+  else if(name.compare("2") == 0) return ADD;
+  else if(name.compare("3") == 0) return DELETE;
+  else{
+    std::cout << "query name not found!" << std::endl;
+    exit(0);
+  }
+}
+
 class chat_participant
 {
 public:
@@ -174,6 +185,7 @@ public:
     {
       Json::Value jval;
       Json::Reader jsonReader;
+      chat_message msg;
       char *ret = get_json_value(read_msg_.body(), read_msg_.length());
       bool parsingSuccessful = jsonReader.parse(ret, jval); // parse process
       if (!parsingSuccessful) {
@@ -181,12 +193,100 @@ public:
       }
       int engineId = jval["engineId"].asInt();
       int mes_id = jval["mes_id"].asInt();
-      unsigned long face_id = (unsigned long)jval["face_id"].asInt();
+      std::string queryName_str = jval["queryName"].asString();
+      QUERYNAME queryName = get_query_name_from_string(queryName_str);
+      Json::Value json_res;
+      if(queryName == SEARCH){
+        int number_of_vector_request = jval["nov"].asInt();
+        std::string contentVec = jval["contentVec"].asString();
+        float number;
+        std::stringstream ss(contentVec);
+        std::vector<float> content;
+        while(ss >> number)
+        {
+          content.push_back(number);
+        }
 
+        // thuc hien cau query de search vector va face id o day
+
+        // gia lap vector tra ve
+        std::vector<Pair> contentResponse;
+        std::vector<float> res_vec;
+        for(int i = 0; i < 128; ++i){
+          float ele = (float) i;
+          res_vec.push_back(ele);
+        }
+        //
+        for(int i = 0; i < number_of_vector_request; ++i){
+          int id = i;
+          Pair *p = new Pair(id, res_vec);
+          contentResponse.push_back(*p);
+        }
+        //
+        //xu ly contentResponse
+        Json::Value result;
+        std::string key = "Pair";
+        for(int i = 0; i < number_of_vector_request; ++i){
+          std::stringstream ss;
+          std::ostringstream ssi;
+          ssi << i;
+          ss << key << "_" << ssi.str();
+          std::string key_el = ss.str();
+
+          Json::Value val_tmp = contentResponse[i].parse_content_to_json();
+          result[key_el] = val_tmp;
+        }
+        //
+        //truyen vao message tra ve client
+        json_res["engineId"] = engineId;
+        json_res["mes_id"] = mes_id;
+        json_res["queryName"] = queryName;
+        json_res["nov"] = number_of_vector_request;
+        json_res["responseContent"] = result;
+        //
+      }
+      else if(queryName == ADD)
+      {
+        int face_id = jval["face_id"].asInt();
+        std::string contentVec = jval["contentVec"].asString();
+        float number;
+        std::stringstream ss(contentVec);
+        std::vector<float> content;
+        while(ss >> number)
+        {
+          content.push_back(number);
+        }
+        //thuc hien cau query add o day
+        std::string resp = "Add Done";
+        json_res["engineId"] = engineId;
+        json_res["mes_id"] = mes_id;
+        json_res["queryName"] = queryName;
+        json_res["face_id"] = face_id;
+        json_res["responseContent"] = resp;
+        //
+      }
+      else if(queryName == DELETE)
+      {
+        int face_id = jval["face_id"].asInt();
+
+        //thuc hien cau query delete o day
+        std::string resp = "Delete Done";
+        json_res["engineId"] = engineId;
+        json_res["mes_id"] = mes_id;
+        json_res["queryName"] = queryName;
+        json_res["face_id"] = face_id;
+        json_res["responseContent"] = resp;
+        //
+
+      }
       // xu ly doan query o day
       //sau khi xu ly xong, nhan duoc du lieu
-
-      room_.deliverToOneEngine(read_msg_, engineId);
+      std::string str = json_res.toStyledString();
+      msg.body_length(str.length());
+      std::memcpy(msg.body(), str.c_str(), msg.body_length());
+      msg.encode_header();
+      //
+      room_.deliverToOneEngine(msg, engineId);
       boost::asio::async_read(socket_,
           boost::asio::buffer(read_msg_.data(), chat_message::header_length),
           boost::bind(&chat_session::handle_read_header, shared_from_this(),

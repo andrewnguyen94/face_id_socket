@@ -35,13 +35,13 @@ char *get_json_value(char *val, size_t size){
 }
 
 QUERYNAME get_query_name_from_string(std::string name){
-  if(name.compare("search") == 0 || name.compare("SEARCH") == 0) return SEARCH;
-  else if(name.compare("engine_Id") == 0 || name.compare("ENGINEID") == 0) return ENGINEID;
-  else if(name.compare("add") == 0 || name.compare("ADD") == 0) return ADD;
-  else if(name.compare("delete") == 0 || name.compare("DELETE") == 0) return DELETE;
+  if(name.compare("1") == 0) return SEARCH;
+  else if(name.compare("0") == 0) return ENGINEID;
+  else if(name.compare("2") == 0) return ADD;
+  else if(name.compare("3") == 0) return DELETE;
   else{
     std::cout << "query name not found!" << std::endl;
-    return 1;
+    exit(0);
   }
 }
 
@@ -113,9 +113,9 @@ public:
     }
   }
 
-  void set_response(response response)
+  void set_response(response resp)
   {
-    res = response;
+    res = resp;
   } 
 
   response get_response()
@@ -163,13 +163,14 @@ private:
       if (!parsingSuccessful) {
           std::cout << "Failed to parse" << jsonReader.getFormattedErrorMessages();
       }
-      response resp = new response();
+      response *resp = new response();
       std::string queryName_str = jsonValue["queryName"].asString();
+      std::cout << "queryName_str: " << queryName_str << std::endl;
       QUERYNAME queryName = get_query_name_from_string(queryName_str);
       if (queryName == ENGINEID){
         set_engine_Id(jsonValue["engineId"].asInt());
-        resp.set_engine_id(jsonValue["engineId"].asInt());
-        set_response(resp);
+        resp->set_engine_id(jsonValue["engineId"].asInt());
+        set_response(*resp);
         set_flag_engine(true);
         std::cout << "This engine is assinged to ID: " <<get_engine_Id()<< std::endl;
       }
@@ -177,22 +178,36 @@ private:
         int face_id = jsonValue["face_id"].asInt();
         int mes_id = jsonValue["mes_id"].asInt();
         int engine_id = jsonValue["engineId"].asInt();
-        std::string contentResponse = jsonValue["responseContent"].asString();
+        int number_of_vectors_request = jsonValue["nov"].asInt();
+        Json::Value contentResponse = jsonValue["responseContent"];
+        std::string key = "Pair";
+        std::vector<Pair> vector_p;
+        for(int i = 0; i < number_of_vectors_request; ++i){
+          std::stringstream ss;
+          std::ostringstream ssi;
+          ssi << i;
+          ss << key << "_" << ssi.str();
+          std::string key_el = ss.str();
+          Json::Value v = contentResponse[key_el];
+          int id = v["id"].asInt();
+          std::string content_string = v["content"].asString();
+          std::stringstream ssv(content_string);
+          float number;
+          std::vector<float> content;
+          while(ssv >> number)
+          {
+            content.push_back(number);
+          }
 
-        std::stringstream ss(contentResponse);
-        float number;
-        std::vector<float> content
-        while(ss >> number)
-        {
-          content.push_back(number);
+          Pair *p = new Pair(id, content);
+          vector_p.push_back(*p);
+
         }
-
-        resp.set_face_id(face_id);
-        resp.set_mes_id(mes_id);
-        resp.set_engine_id(engine_id);
-        resp.set_query_name(queryName);
-        resp.set_content(contentResponse);
-        resp.set_content_vec(content);
+        resp->set_mes_id(mes_id);
+        resp->set_engine_id(engine_id);
+        resp->set_query_name(queryName);
+        resp->set_result_res(vector_p);
+        set_response(*resp);
         set_flag(true);
       }
       else if(queryName == ADD){
@@ -200,11 +215,11 @@ private:
         int engine_id = jsonValue["engineId"].asInt();
         int face_id = jsonValue["face_id"].asInt();
         std::string contentResponse = jsonValue["responseContent"].asString();
-        resp.set_engine_id(engine_id);
-        resp.set_mes_id(mes_id);
-        resp.set_content(contentResponse);
-        resp.set_face_id(face_id);
-        set_response(resp);
+        resp->set_engine_id(engine_id);
+        resp->set_mes_id(mes_id);
+        resp->set_content(contentResponse);
+        resp->set_face_id(face_id);
+        set_response(*resp);
         set_flag(true);
       }
       else if(queryName == DELETE){
@@ -213,11 +228,11 @@ private:
         int face_id = jsonValue["face_id"].asInt();
         std:string contentResponse = jsonValue["responseContent"].asString();
 
-        resp.set_engine_id(engine_id);
-        resp.set_mes_id(mes_id);
-        resp.set_content(contentResponse);
-        resp.set_face_id(face_id);
-        set_response(resp);
+        resp->set_engine_id(engine_id);
+        resp->set_mes_id(mes_id);
+        resp->set_content(contentResponse);
+        resp->set_face_id(face_id);
+        set_response(*resp);
         set_flag(true);
       }
 
@@ -302,16 +317,22 @@ int main(int argc, char* argv[])
     boost::thread t(boost::bind(&boost::asio::io_service::run, &io_service));
 
     int message_id = 0;
+    std::vector<float> v_req;
+    for(int i = 0; i < 128; ++i){
+      float ele = (float) i;
+      v_req.push_back(ele);
+    }
 
     for(int i = 0; i < 1000; ++i){
       chat_message msg;
       Json::Value jval;
-
+      
       c.wait_for_get_engine_id();
-      int face_id = i;
-      request res = new request(c.get_engine_Id(), message_id, SEARCH, face_id);
+      request *req = new request(c.get_engine_Id(), message_id, SEARCH);
+      req->set_number_of_vectors_request(10);
+      req->set_content_vec(v_req);
       message_id ++;
-      jval = res.parse_request_to_json();
+      jval = req->parse_request_to_json();
       // jval["engineId"] = c.get_engine_Id();
       // jval["queryName"] = SEARCH;
       // jval["contentVec"] = i;
