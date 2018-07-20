@@ -5,10 +5,14 @@
 #include <boost/asio.hpp>
 #include <boost/thread/thread.hpp>
 #include <sstream>
+#include "opencv2/core/core.hpp"
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/imgcodecs/imgcodecs.hpp"
 #include "jsoncpp/json/json.h"
 #include "../chat_message.hpp"
 
 using boost::asio::ip::tcp;
+using namespace cv;
 
 typedef std::deque<chat_message> chat_message_queue;
 
@@ -39,6 +43,7 @@ QUERYNAME get_query_name_from_string(std::string name){
   else if(name.compare("0") == 0) return ENGINEID;
   else if(name.compare("2") == 0) return ADD;
   else if(name.compare("3") == 0) return DELETE;
+  else if(name.compare("4" )== 0) return SEND;
   else{
     std::cout << "query name not found!" << std::endl;
     exit(0);
@@ -121,6 +126,27 @@ public:
   response get_response()
   {
     return res;
+  }
+
+  void push_image_to_server(std::vector<cv::Mat> imgVector, std::string key, int message_id)
+  {
+    chat_message msg;
+    Json::Value jval;
+    unsigned char *src = (unsigned char *)imgVector.data();
+    wait_for_get_engine_id();
+    int engineId = get_engine_Id();
+    request *req = new request(engineId, message_id, SEND);
+    req->set_content_img_vec(imgVector);
+    req->set_number_of_image_request((int)(imgVector.size()));
+    jval = req->parse_request_to_json();
+
+    std::string lineSend = jval.toStyledString();
+    msg.body_length(lineSend.length());
+    memcpy(msg.body(), lineSend.c_str(), msg.body_length());
+    std::cout << "length :" << msg.body_length() << std::endl;
+    msg.encode_header();
+    write(msg);
+    wait_for_response();
   }
 
 private:
@@ -234,6 +260,17 @@ private:
         set_response(*resp);
         set_flag(true);
       }
+      else if(queryName == SEND)
+      {
+        int mes_id = jsonValue["mes_id"].asInt();
+        int engine_id = jsonValue["engineId"].asInt();
+        std::string contentResponse = jsonValue["responseContent"].asString();
+        resp->set_engine_id(engine_id);
+        resp->set_mes_id(mes_id);
+        resp->set_content(contentResponse);
+        set_response(*resp);
+        set_flag(true);
+      }
 
       boost::asio::async_read(socket_,
           boost::asio::buffer(read_msg_.data(), chat_message::header_length),
@@ -305,6 +342,12 @@ int main(int argc, char* argv[])
       std::cerr << "Usage: chat_client <host> <port>\n";
       return 1;
     }
+    /*fix host here
+    example:
+
+
+    */
+
     boost::asio::io_service io_service;
 
     tcp::resolver resolver(io_service);
@@ -321,29 +364,31 @@ int main(int argc, char* argv[])
       float ele = (float) i;
       v_req.push_back(ele);
     }
+    std::vector<cv::Mat> src;
+    cv::Mat img = imread("/home/anhnt/Pictures/test.png", CV_LOAD_IMAGE_COLOR);
+    src.push_back(img);
+    c.push_image_to_server(src, "test", message_id);
 
-    for(int i = 0; i < 1000; ++i){
-      chat_message msg;
-      Json::Value jval;
+    // for(int i = 0; i < 1000; ++i){
+    //   chat_message msg;
+    //   Json::Value jval;
       
-      c.wait_for_get_engine_id();
-      request *req = new request(c.get_engine_Id(), message_id, SEARCH);
-      req->set_number_of_vectors_request(10);
-      req->set_content_vec(v_req);
-      message_id ++;
-      jval = req->parse_request_to_json();
-      // jval["engineId"] = c.get_engine_Id();
-      // jval["queryName"] = SEARCH;
-      // jval["contentVec"] = i;
+    //   c.wait_for_get_engine_id();
+    //   request *req = new request(c.get_engine_Id(), message_id, SEARCH);
+    //   req->set_number_of_vectors_request(10);
+    //   req->set_content_vec(v_req);
+    //   message_id ++;
+    //   jval = req->parse_request_to_json();
 
-      std::string lineSend = jval.toStyledString();
+    //   std::string lineSend = jval.toStyledString();
 
-      msg.body_length(lineSend.length());
-      memcpy(msg.body(), lineSend.c_str(), msg.body_length());
-      msg.encode_header();
-      c.write(msg);
-      c.wait_for_response();
-    }
+    //   msg.body_length(lineSend.length());
+    //   memcpy(msg.body(), lineSend.c_str(), msg.body_length());
+    //   std::cout << "length" << msg.body_length() << std::endl;
+    //   msg.encode_header();
+    //   c.write(msg);
+    //   c.wait_for_response();
+    // }
 
     c.close();
     t.join();

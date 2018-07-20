@@ -4,22 +4,27 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string.h>
 #include <sstream>
+#include <opencv2/core.hpp>
+#include "jsoncpp/json/json.h"
 
 using namespace std;
+using namespace cv;
 
 typedef enum QUERYNAME{
   ENGINEID,
   SEARCH,
   ADD,
-  DELETE
+  DELETE,
+  SEND
 }QUERYNAME;
 
 class chat_message
 {
 public:
   enum { header_length = 4 };
-  enum { max_body_length = 5120 };
+  enum { max_body_length = 0xA0000 };
 
   chat_message()
     : body_length_(0)
@@ -218,6 +223,100 @@ private:
   int face_id;
 };
 
+class image
+{
+public:
+  image(int w, int h, int d, int t, int st)
+    : width(w), height(h), dim(d), type(t), step(st)
+  {
+
+  }
+
+  void set_width(int w)
+  {
+    width = w;
+  }
+
+  int get_width()
+  {
+    return width;
+  }
+
+  void set_height(int h)
+  {
+    height = h;
+  }
+
+  int get_height()
+  {
+    return height;
+  }
+
+  void set_dim(int d)
+  {
+    dim = d;
+  }
+
+  int get_dim()
+  {
+    return dim;
+  }
+
+  void set_type(int t)
+  {
+    type = t;
+  }
+
+  int get_type()
+  {
+    return type;
+  }
+
+  void set_step(int st)
+  {
+    step = st;
+  }
+
+  int get_step()
+  {
+    return step;
+  }
+
+  void set_data(unsigned char *d, size_t l)
+  {
+    data = (unsigned char *)malloc(sizeof(unsigned char) * l);
+    memcpy(data, d, l);
+  }
+
+  unsigned char *get_data()
+  {
+    return data;
+  }
+
+  Json::Value parse_image_to_json()
+  {
+    Json::Value val;
+    val["width"] = get_width();
+    val["height"] = get_height();
+    val["dim"] = get_dim();
+    val["type"] = get_type();
+    val["step"] = get_step();
+    std::string data_str(reinterpret_cast<char*>(get_data()));
+    val["content"] = data_str;
+
+    return val;
+  }
+
+private:
+  unsigned char *data;
+  int width;
+  int height;
+  int dim;
+  int step;
+  int type;
+
+};
+
 class request
 {
 public:
@@ -278,6 +377,18 @@ public:
     return contentVec;
   }
 
+  void set_content_img_vec(std::vector<cv::Mat> img_vec)
+  {
+    std::vector<cv::Mat>::iterator it;
+    it = img_vec.begin();
+    image_vec.assign(it, img_vec.end());
+  }
+
+  std::vector<cv::Mat> get_content_img_vec()
+  {
+    return image_vec;
+  }
+
   void set_number_of_vectors_request(int n)
   {
     number_of_vectors_request = n;
@@ -286,6 +397,16 @@ public:
   int get_number_of_vectors_request()
   {
     return number_of_vectors_request;
+  }
+
+  void set_number_of_image_request(int n)
+  {
+    number_of_image_request = n;
+  }
+
+  int get_number_of_image_request()
+  {
+    return number_of_image_request;
   }
 
   Json::Value parse_request_to_json()
@@ -297,12 +418,33 @@ public:
       jval["nov"] = get_number_of_vectors_request();
     }
     jval["mes_id"] = get_mes_id();
-    if(!get_content_vec().empty()){
-      std::vector<float> cv = get_content_vec();
-      std::ostringstream oss;
-      std::copy(cv.begin(), cv.end() - 1, std::ostream_iterator<float>(oss, ","));
-      oss << cv.back();
-      jval["contentVec"] = oss.str();
+    if(jval["queryName"] == SEND){
+      std::vector<cv::Mat> cv = get_content_img_vec();
+      jval["noi"] = get_number_of_image_request();
+      Json::Value j_tmp;
+      std::string key = "image_";
+      for(size_t i = 0; i < cv.size(); ++i){
+        image *img = new image(cv[i].cols, cv[i].rows, cv[i].channels(), cv[i].type(), cv[i].step);
+        size_t size = (size_t)(cv[i].cols * cv[i].rows * cv[i].channels());
+        img->set_data(cv[i].data, size);
+        std::stringstream ss;
+        std::ostringstream oss;
+        oss << i;
+        ss << key << oss.str();
+        std::string key_el = ss.str();
+        
+        j_tmp[key_el] = img->parse_image_to_json();       
+      }
+
+      jval["contentVec"] = j_tmp;
+    }else{
+      if(!get_content_vec().empty()){  
+        std::vector<float> cv = get_content_vec();
+        std::ostringstream oss;
+        std::copy(cv.begin(), cv.end() - 1, std::ostream_iterator<float>(oss, " "));
+        oss << cv.back();
+        jval["contentVec"] = oss.str();      
+      }
     }
     return jval;
   }
@@ -314,6 +456,8 @@ private:
   int mes_id;
   int engineId;
   std::vector<float> contentVec;
+  std::vector<cv::Mat> image_vec;
+  int number_of_image_request;
   int number_of_vectors_request;
 };
 
