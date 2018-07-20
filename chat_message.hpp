@@ -19,7 +19,7 @@ class chat_message
 {
 public:
   enum { header_length = 4 };
-  enum { max_body_length = 512 };
+  enum { max_body_length = 5120 };
 
   chat_message()
     : body_length_(0)
@@ -130,7 +130,7 @@ public:
     val["id"] = get_face_id();
     std::vector<float> tmp = get_content_vec();
     std::ostringstream oss;
-    std::copy(tmp.begin(), tmp.end() - 1, std::ostream_iterator<float>(oss, ","));
+    std::copy(tmp.begin(), tmp.end() - 1, std::ostream_iterator<float>(oss, " "));
     oss << tmp.back();
 
     val["content"] = oss.str();

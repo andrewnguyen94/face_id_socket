@@ -165,7 +165,6 @@ private:
       }
       response *resp = new response();
       std::string queryName_str = jsonValue["queryName"].asString();
-      std::cout << "queryName_str: " << queryName_str << std::endl;
       QUERYNAME queryName = get_query_name_from_string(queryName_str);
       if (queryName == ENGINEID){
         set_engine_Id(jsonValue["engineId"].asInt());
@@ -180,6 +179,7 @@ private:
         int engine_id = jsonValue["engineId"].asInt();
         int number_of_vectors_request = jsonValue["nov"].asInt();
         Json::Value contentResponse = jsonValue["responseContent"];
+        
         std::string key = "Pair";
         std::vector<Pair> vector_p;
         for(int i = 0; i < number_of_vectors_request; ++i){
@@ -198,7 +198,6 @@ private:
           {
             content.push_back(number);
           }
-
           Pair *p = new Pair(id, content);
           vector_p.push_back(*p);
 
@@ -344,7 +343,6 @@ int main(int argc, char* argv[])
       msg.encode_header();
       c.write(msg);
       c.wait_for_response();
-
     }
 
     c.close();
