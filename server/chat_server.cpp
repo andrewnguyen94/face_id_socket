@@ -11,6 +11,9 @@
 #include <boost/foreach.hpp>
 #include <dlib/matrix.h>
 #include <curl/curl.h>
+#include <string.h>
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
 #include "jsoncpp/json/json.h"
 #include "../chat_message.hpp"
 #include "../utils.h"
@@ -19,6 +22,7 @@
 
 using boost::asio::ip::tcp;
 using namespace dlib;
+using namespace cv;
 //----------------------------------------------------------------------
 
 typedef std::deque<chat_message> chat_message_queue;
@@ -46,6 +50,24 @@ char *get_json_value(char *val, size_t size){
       count_ret ++;
   }
   return ret;
+}
+
+size_t get_size_original(char *val, size_t size)
+{
+  int count = 0;
+  int count_ret = 0;
+  char *ret;
+  char s;
+  char key = '{';
+  for(size_t i = 0; i < size; ++i){
+      s = val[i];
+      if(s != '{') {
+          count++;
+      }else{
+          break;
+      }
+  }
+  return size - (size_t)count;
 }
 
 QUERYNAME get_query_name_from_string(std::string name){
@@ -153,7 +175,8 @@ public:
         boost::asio::buffer(read_msg_.data(), chat_message::header_length),
         boost::bind(
           &chat_session::handle_read_header, shared_from_this(),
-          boost::asio::placeholders::error));
+          boost::asio::placeholders::error,
+          boost::asio::placeholders::bytes_transferred));
   }
 
   void deliver(const chat_message& msg)
@@ -171,15 +194,24 @@ public:
   }
 
 
-  void handle_read_header(const boost::system::error_code& error)
+  void handle_read_header(const boost::system::error_code& error, size_t bytes_transferred)
   {
-    std::cout << "length : " << read_msg_.length() << std::endl;
     if (!error && read_msg_.decode_header())
     {
-      boost::asio::async_read(socket_,
-          boost::asio::buffer(read_msg_.body(), read_msg_.body_length()),
-          boost::bind(&chat_session::handle_read_body, shared_from_this(),
-            boost::asio::placeholders::error));
+      std::cout << "data : " << read_msg_.data() << std::endl;
+      boost::asio::async_read(socket_, boost::asio::buffer(read_msg_.body(), read_msg_.body_length()),
+        boost::bind(&chat_session::handle_read_body, shared_from_this(),
+            boost::asio::placeholders::error,
+            boost::asio::placeholders::bytes_transferred));
+      // boost::asio::async_read_some(socket_,
+      //     boost::asio::buffer(read_msg_.body(), read_msg_.body_length()),
+      //     boost::bind(&chat_session::handle_read_body, shared_from_this(),
+      //       boost::asio::placeholders::error,
+      //       boost::asio::placeholders::bytes_transferred));
+      // boost::asio::async_read(socket_,
+      //         b, boost::bind(&chat_session::handle_read_body, shared_from_this(),
+      //           boost::asio::placeholders::error,
+      //           boost::asio::placeholders::bytes_transferred));
     }
     else
     {
@@ -187,15 +219,61 @@ public:
     }
   }
 
-  void handle_read_body(const boost::system::error_code& error)
+  void handle_read_body(const boost::system::error_code& error, size_t bytes_transferred)
   {
-    if (!error)
-    {
+    if(!error){
+      // Json::Value jval;
+      // Json::Reader jsonReader;
+      // body_length += read_msg_.body_length();
+      // char *ret;
+      // if((body != NULL) && (body[0] == '\0'))
+      // {
+      //   std::cout << "body_length before :" << body_length << std::endl;
+      //   ret = (char *)malloc(body_length * sizeof(char));
+      //   strcpy(ret, read_msg_.body());
+      //   body = get_json_value(ret, body_length);
+      //   body_length = get_size_original(ret, body_length);
+      //   std::cout << "body_length after :" << body_length << std::endl;
+      //   bool parsingSuccessful = jsonReader.parse(body, jval);
+      //   if(!parsingSuccessful)
+      //   {
+      //     boost::asio::async_read(socket_, boost::asio::buffer(read_msg_.body(), read_msg_.body_length()),
+      //     boost::bind(&chat_session::handle_read_body, shared_from_this(),
+      //       boost::asio::placeholders::error,
+      //       boost::asio::placeholders::bytes_transferred));
+      //   }
+      //   else
+      //   {
+
+      //   }
+      // }else{
+      //   // std::cout << "body_length :" << body_length << std::endl;
+      //   char *new_val = new char[body_length];
+      //   std::move(body, body + read_msg_.body_length(), new_val);
+      //   delete[] body;
+      //   body = new_val;
+      //   strcat(body, read_msg_.body());
+      //   bool parsingSuccessful = jsonReader.parse(body, jval);
+      //   if(!parsingSuccessful)
+      //   {
+      //     boost::asio::async_read(socket_, boost::asio::buffer(read_msg_.body(), read_msg_.body_length()),
+      //     boost::bind(&chat_session::handle_read_body, shared_from_this(),
+      //       boost::asio::placeholders::error,
+      //       boost::asio::placeholders::bytes_transferred));
+      //   }
+      //   else
+      //   {
+      //     std::cout << body << std::endl;
+      //   }
+      // }
+    
       Json::Value jval;
       Json::Reader jsonReader;
-      chat_message msg;
+      chat_message msg;     
+      //
+
+      std::cout << "bytes_transferred : " <<bytes_transferred<<std::endl;
       char *ret = get_json_value(read_msg_.body(), read_msg_.body_length());
-      std::cout << "length :" << read_msg_.body_length() << std::endl;
       bool parsingSuccessful = jsonReader.parse(ret, jval); // parse process
       if (!parsingSuccessful) {
           std::cout << "Failed to parse" << jsonReader.getFormattedErrorMessages();
@@ -311,8 +389,17 @@ public:
           int d = val["dim"].asInt();
           int t = val["type"].asInt();
           int s = val["step"].asInt();
-          std::cout << "w, h, d, t, s : " << w << h << d << t << s << std::endl;
-          cv::Mat mat_el = cv::Mat(h, w, t, (size_t)s);
+          std::string content = val["content"].asString();
+          char *content_char = new char[content.length() + 1];
+          strcpy(content_char, content.c_str());
+          unsigned char *content_unsigned = reinterpret_cast<unsigned char*>(content_char);
+
+          std::cout << "w, h, d, t, s : " << w << "," << h << "," << d << ","<< t << "," << s << "," << std::endl;
+          cv::Mat mat_el = cv::Mat(h, w, t, content_unsigned);
+          namedWindow( "Display window", WINDOW_AUTOSIZE );
+          imshow("Display window", mat_el);
+          waitKey(0);
+          destroyAllWindows();
           imgVector.push_back(mat_el);
         }
         json_res["engineId"] = engineId;
@@ -331,10 +418,12 @@ public:
       boost::asio::async_read(socket_,
           boost::asio::buffer(read_msg_.data(), chat_message::header_length),
           boost::bind(&chat_session::handle_read_header, shared_from_this(),
-            boost::asio::placeholders::error));
+            boost::asio::placeholders::error,
+            boost::asio::placeholders::bytes_transferred));
     }
     else
     {
+      std::cout << error << std::endl;
       room_.leave(shared_from_this());
     }
   }
@@ -364,6 +453,8 @@ private:
   chat_room& room_;
   chat_message read_msg_;
   chat_message_queue write_msgs_;
+  char *body = "";
+  size_t body_length = 0;
 };
 
 typedef boost::shared_ptr<chat_session> chat_session_ptr;

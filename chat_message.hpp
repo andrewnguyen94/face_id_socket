@@ -7,6 +7,8 @@
 #include <string.h>
 #include <sstream>
 #include <opencv2/core.hpp>
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/imgcodecs/imgcodecs.hpp"
 #include "jsoncpp/json/json.h"
 
 using namespace std;
@@ -23,7 +25,7 @@ typedef enum QUERYNAME{
 class chat_message
 {
 public:
-  enum { header_length = 4 };
+  enum { header_length = 7 };
   enum { max_body_length = 0xA0000 };
 
   chat_message()
@@ -88,6 +90,7 @@ public:
     char header[header_length + 1] = "";
     sprintf(header, "%4d", static_cast<int>(body_length_));
     memcpy(data_, header, header_length);
+
   }
 
 private:
@@ -427,6 +430,7 @@ public:
         image *img = new image(cv[i].cols, cv[i].rows, cv[i].channels(), cv[i].type(), cv[i].step);
         size_t size = (size_t)(cv[i].cols * cv[i].rows * cv[i].channels());
         img->set_data(cv[i].data, size);
+
         std::stringstream ss;
         std::ostringstream oss;
         oss << i;

@@ -123,3 +123,25 @@ std::vector<cv::Mat> convert_from_uschar_to_mat(unsigned char *data)
 {
 	
 }
+
+int search_special_char(char *arr, size_t len)
+{
+	int count = 0;
+	for(size_t i = 0; i < len; ++i){
+		if(arr[i] == '{')
+		{
+			count ++;
+		}
+	}
+	return count;
+}
+
+int search_special_char_inverse(char *arr, size_t len)
+{
+	int count = 0;
+	for(size_t i = 0; i < len; ++i){
+		if(arr[i] == '}')
+			count++;
+		return count;
+	}
+}

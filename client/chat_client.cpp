@@ -141,9 +141,26 @@ public:
     jval = req->parse_request_to_json();
 
     std::string lineSend = jval.toStyledString();
+    std::string tmp = jval["contentVec"]["image_0"]["content"].asString();
+    char *tmp_char = new char[tmp.length() + 1];
+    strcpy(tmp_char, tmp.c_str());
+    tmp_char[tmp.length()] = '\0';
+    // std::cout << "2" <<std::endl;
+    int h = jval["contentVec"]["image_0"]["height"].asInt();
+    int w = jval["contentVec"]["image_0"]["width"].asInt();
+    int t = jval["contentVec"]["image_0"]["type"].asInt();
+    cv::Mat tmp_mat = cv::Mat(h,w, t,
+      tmp_char);
+
+    // std::cout << "3" <<std::endl;
+    namedWindow("test", WINDOW_AUTOSIZE);
+    imshow("test", tmp_mat);
+    waitKey(0);
+    destroyAllWindows();
+    // std::cout << "4" <<std::endl;
+
     msg.body_length(lineSend.length());
     memcpy(msg.body(), lineSend.c_str(), msg.body_length());
-    std::cout << "length :" << msg.body_length() << std::endl;
     msg.encode_header();
     write(msg);
     wait_for_response();
@@ -293,11 +310,12 @@ private:
           boost::asio::buffer(write_msgs_.front().data(),
             write_msgs_.front().length()),
           boost::bind(&chat_client::handle_write, this,
-            boost::asio::placeholders::error));
+            boost::asio::placeholders::error,
+            boost::asio::placeholders::bytes_transferred));
     }
   }
 
-  void handle_write(const boost::system::error_code& error)
+  void handle_write(const boost::system::error_code& error, size_t bytes_transferred)
   {
     if (!error)
     {
@@ -308,7 +326,8 @@ private:
             boost::asio::buffer(write_msgs_.front().data(),
               write_msgs_.front().length()),
             boost::bind(&chat_client::handle_write, this,
-              boost::asio::placeholders::error));
+              boost::asio::placeholders::error,
+              boost::asio::placeholders::bytes_transferred));
       }
     }
     else

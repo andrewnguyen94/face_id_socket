@@ -13,6 +13,7 @@
 #include <dlib/matrix.h>
 #include <curl/curl.h>
 #include <string>
+#include <string.h>
 #include <opencv2/core.hpp>
 #include "jsoncpp/json/json.h"
 
@@ -40,4 +41,6 @@ struct PersonInfo {
 
 std::vector<PersonInfo> readFromDatabase();
 std::vector<cv::Mat> convert_from_uschar_to_mat(unsigned char *data);
+int search_special_char(char *arr, size_t len);
+int search_special_char_inverse(char *arr, size_t len);
 #endif
