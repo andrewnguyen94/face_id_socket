@@ -1,0 +1,65 @@
+url:rtsp://admin:1111@192.168.10.27:554/av0_0
+/home/huuton/Desktop/2017_10_19_09_28_47.mp4
+urlkind:rtsp
+car_cascade:../data/plateCascade/2620_RectWhitePlate_Universal.xml
+car_horizontal_cascade:../data/plateCascade/white_long_5616_Sep15.xml
+car_redblue_cascade:../data/plateCascade/Rect_Color_Oct26.xml
+car_redblue_horizontal_cascade:../data/plateCascade/Long_Color_Nov11_5616_noWhite.xml
+caffe2_init:../data/TextReaderdata/init_net.pb
+caffe2_predict:../data/TextReaderdata/predict_net.pb
+filedump:../data/TextReaderdata/cnn-20171115_3232.dump
+
+Engine data
+{
+frameQueueSize: 100
+fps_video_reading: 25
+UsedURL: 1
+IPCameraAddress:192.168.10.27
+MacCameraAddress:d0:22:12:d9:84:4f
+UserCameraAddress:admin
+PassCameraAddress:1111
+Urlsearchip:rtsp://admin:D9844F@
+cam_id:7777
+cam_location:Camera AXIS - My Dinh
+sever_address:http://demo.stmc.vp9.vn:8000/plateInfo
+FrameIgnored:3
+(ex: FrameIgnored = 2 -> chi xu ly cac frame co frameid%2==0)
+sizevideoinput_w:1920
+sizevideoinput_h:1080
+}
+Resolution{
+video_width:1920
+video_height:1080
+}
+plateSizeForCascade_Square{
+SquareMinWidth:26
+SquareMinHeight:20
+SquareMaxWidth:300
+SquareMaxHeight:200
+SquareDetectScale:5
+SquareNeighbor:3
+size_quare_cascade_x: 26
+size_quare_cascade_y: 20
+}
+plateSizeForCascade_Long{
+LongMinWidth:112
+LongMinHeight:32
+LongMaxWidth:350
+LongMaxHeight:150
+LongDetectScale:5
+LongNeighbor:3
+size_long_cascade_x: 56
+size_long_cascade_y: 16
+}
+
+cropFrame{    
+cropX:100
+cropY:400
+cropWidth:200
+cropHeight:200
+}
+
+showVideo
+{
+showVideo:1
+}

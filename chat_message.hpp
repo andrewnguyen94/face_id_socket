@@ -20,7 +20,8 @@ typedef enum QUERYNAME{
   SEARCH,
   ADD,
   DELETE,
-  SEND
+  SEND,
+  BRIGHTNESS
 }QUERYNAME;
 
 class chat_message
@@ -91,7 +92,6 @@ public:
     char header[header_length + 1] = "";
     sprintf(header, "%4d", static_cast<int>(body_length_));
     memcpy(data_, header, header_length);
-
   }
 
 private:
@@ -218,6 +218,16 @@ public:
     return content;
   }
 
+  void set_brightness(int br)
+  {
+    brightness = br;
+  }
+
+  int get_brightness()
+  {
+    return brightness;
+  }
+
 private:
   int mes_id;
   int engineId;
@@ -225,6 +235,7 @@ private:
   std::vector<Pair> result_res;
   std::string content;
   int face_id;
+  int brightness;
 };
 
 class image

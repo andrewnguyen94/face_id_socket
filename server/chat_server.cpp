@@ -17,6 +17,8 @@
 #include "jsoncpp/json/json.h"
 #include "../chat_message.hpp"
 #include "../utils.h"
+#include "IOData.h"
+#include "Onvif.h"
 // #include "bucket_sort2d.cuh"
 
 
@@ -76,6 +78,7 @@ QUERYNAME get_query_name_from_string(std::string name){
   else if(name.compare("2") == 0) return ADD;
   else if(name.compare("3") == 0) return DELETE;
   else if(name.compare("4") == 0) return SEND;
+  else if(name.compare("5") == 0) return BRIGHTNESS;
   else{
     std::cout << "query name not found!" << std::endl;
     exit(0);
@@ -198,7 +201,6 @@ public:
   {
     if (!error && read_msg_.decode_header())
     {
-      std::cout << "data : " << read_msg_.data() << std::endl;
       boost::asio::async_read(socket_, boost::asio::buffer(read_msg_.body(), read_msg_.body_length()),
         boost::bind(&chat_session::handle_read_body, shared_from_this(),
             boost::asio::placeholders::error,
@@ -227,10 +229,7 @@ public:
       Json::Reader jsonReader;
       chat_message msg;     
       //
-
-      std::cout << "bytes_transferred : " <<bytes_transferred<<std::endl;
       char *ret = get_json_value(read_msg_.body(), read_msg_.body_length());
-      std::cout << ret << std::endl;
       bool parsingSuccessful = jsonReader.parse(ret, jval); // parse process
       if (!parsingSuccessful) {
           std::cout << "Failed to parse" << jsonReader.getFormattedErrorMessages();
@@ -363,6 +362,20 @@ public:
         json_res["mes_id"] = mes_id;
         json_res["queryName"] = queryName;
         json_res["responseContent"] = resp;
+      }
+      else if(queryName == BRIGHTNESS)
+      {
+        IOData *ioData = new IOData();
+        std::string IPCameraAddress = ioData->GetCongfigData("IPCameraAddress:").c_str();
+        OnvifController onvifController(IPCameraAddress+":2000");
+        // OnvifController onvifController("10.12.11.149:8999"); // Cam a Tuc
+        int current_brightness = 0;
+        current_brightness = onvifController.getBrightness();
+        std::cout << "current_brightness" << current_brightness << std::endl;
+        json_res["engineId"] = engineId;
+        json_res["mes_id"] = mes_id;
+        json_res["queryName"] = queryName;
+        json_res["responseContent"] = current_brightness;
       }
       // xu ly doan query o day
       //sau khi xu ly xong, nhan duoc du lieu

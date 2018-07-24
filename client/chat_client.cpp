@@ -4,6 +4,7 @@
 #include <boost/bind.hpp>
 #include <boost/asio.hpp>
 #include <boost/thread/thread.hpp>
+#include <boost/function.hpp>
 #include <sstream>
 #include "opencv2/core/core.hpp"
 #include "opencv2/highgui/highgui.hpp"
@@ -43,7 +44,8 @@ QUERYNAME get_query_name_from_string(std::string name){
   else if(name.compare("0") == 0) return ENGINEID;
   else if(name.compare("2") == 0) return ADD;
   else if(name.compare("3") == 0) return DELETE;
-  else if(name.compare("4" )== 0) return SEND;
+  else if(name.compare("4") == 0) return SEND;
+  else if(name.compare("5") == 0) return BRIGHTNESS;
   else{
     std::cout << "query name not found!" << std::endl;
     exit(0);
@@ -56,16 +58,26 @@ public:
   chat_client(boost::asio::io_service& io_service,
       tcp::resolver::iterator endpoint_iterator)
     : io_service_(io_service),
-      socket_(io_service)
+      socket_(io_service),
+      t(io_service)
   {
     boost::asio::async_connect(socket_, endpoint_iterator,
         boost::bind(&chat_client::handle_connect, this,
           boost::asio::placeholders::error));
   }
 
+  void set_timer(boost::posix_time::ptime time, boost::function<void(const boost::system::error_code&)> handler)
+  {
+    t.expires_at(time);
+    t.async_wait(handler);
+  }
+
   void write(const chat_message& msg)
   {
-    io_service_.post(boost::bind(&chat_client::do_write, this, msg));
+    set_timer(boost::posix_time::microsec_clock::universal_time() + boost::posix_time::seconds(1),
+      boost::bind(&chat_client::do_write, this, msg, boost::asio::placeholders::error));
+    // io_service_.post(boost::bind(&chat_client::do_write, this, msg));
+    io_service_.run();
   }
 
   void close()
@@ -132,16 +144,31 @@ public:
   {
     chat_message msg;
     Json::Value jval;
-    unsigned char *src = (unsigned char *)imgVector.data();
     wait_for_get_engine_id();
     int engineId = get_engine_Id();
     request *req = new request(engineId, message_id, SEND);
     req->set_content_img_vec(imgVector);
     req->set_number_of_image_request((int)(imgVector.size()));
     jval = req->parse_request_to_json();
-
+    // delete[] req;
     std::string lineSend = jval.toStyledString();
 
+    msg.body_length(lineSend.length());
+    memcpy(msg.body(), lineSend.c_str(), msg.body_length());
+    msg.encode_header();
+    write(msg);
+    wait_for_response();
+  }
+
+  void get_brightness_from_server(int message_id)
+  {
+    chat_message msg;
+    Json::Value jval;
+    wait_for_get_engine_id();
+    int engineId = get_engine_Id();
+    request *req = new request(engineId, message_id, BRIGHTNESS);
+    jval = req->parse_request_to_json();
+    std::string lineSend = jval.toStyledString();
     msg.body_length(lineSend.length());
     memcpy(msg.body(), lineSend.c_str(), msg.body_length());
     msg.encode_header();
@@ -177,6 +204,7 @@ private:
     }
     else
     {
+      std::cout << error << std::endl;
       do_close();
     }
   }
@@ -275,6 +303,17 @@ private:
         set_response(*resp);
         set_flag(true);
       }
+      else if(queryName == BRIGHTNESS)
+      {
+        int mes_id = jsonValue["mes_id"].asInt();
+        int engine_id = jsonValue["engineId"].asInt();
+        int contentResponse = jsonValue["responseContent"].asInt();
+        resp->set_engine_id(engine_id);
+        resp->set_mes_id(mes_id);
+        resp->set_brightness(contentResponse);
+        set_response(*resp);
+        set_flag(true);
+      }
 
       boost::asio::async_read(socket_,
           boost::asio::buffer(read_msg_.data(), chat_message::header_length),
@@ -287,8 +326,9 @@ private:
     }
   }
 
-  void do_write(chat_message msg)
+  void do_write(chat_message msg, const boost::system::error_code& error)
   {
+    std::cout << "dcm" << std::endl;
     bool write_in_progress = !write_msgs_.empty();
     write_msgs_.push_back(msg);
     if (!write_in_progress)
@@ -337,6 +377,7 @@ private:
   bool flag = false;
   bool flag_engine = false;
   response res;
+  boost::asio::deadline_timer t;
 };
 
 int main(int argc, char* argv[])
@@ -359,6 +400,7 @@ int main(int argc, char* argv[])
     tcp::resolver resolver(io_service);
     tcp::resolver::query query(argv[1], argv[2]);
     tcp::resolver::iterator iterator = resolver.resolve(query);
+    // boost::asio::basic_deadline_timer t{io_service};
 
     chat_client c(io_service, iterator);
 
@@ -371,10 +413,13 @@ int main(int argc, char* argv[])
       v_req.push_back(ele);
     }
     std::vector<cv::Mat> src;
-    cv::Mat img = imread("/home/anhnt/Russian_System_of_ANPR/test_Images/00000000.jpg", CV_LOAD_IMAGE_COLOR);
+    cv::Mat img = imread("/home/anhnt/Pictures/test.png", CV_LOAD_IMAGE_COLOR);
     src.push_back(img);
     c.push_image_to_server(src, "test", message_id);
-
+    // c.get_brightness_from_server(message_id);
+    // response res = c.get_response();
+    // int current_brightness = res.get_brightness();
+    // std::cout << "current_brightness :" << current_brightness << std::endl;
     // for(int i = 0; i < 1000; ++i){
     //   chat_message msg;
     //   Json::Value jval;
