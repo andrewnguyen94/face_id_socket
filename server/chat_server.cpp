@@ -17,7 +17,7 @@
 #include "jsoncpp/json/json.h"
 #include "../chat_message.hpp"
 #include "../utils.h"
-#include "bucket_sort2d.cuh"
+// #include "bucket_sort2d.cuh"
 
 
 using boost::asio::ip::tcp;
@@ -52,23 +52,23 @@ char *get_json_value(char *val, size_t size){
   return ret;
 }
 
-size_t get_size_original(char *val, size_t size)
-{
-  int count = 0;
-  int count_ret = 0;
-  char *ret;
-  char s;
-  char key = '{';
-  for(size_t i = 0; i < size; ++i){
-      s = val[i];
-      if(s != '{') {
-          count++;
-      }else{
-          break;
-      }
-  }
-  return size - (size_t)count;
-}
+// size_t get_size_original(char *val, size_t size)
+// {
+//   int count = 0;
+//   int count_ret = 0;
+//   char *ret;
+//   char s;
+//   char key = '{';
+//   for(size_t i = 0; i < size; ++i){
+//       s = val[i];
+//       if(s != '{') {
+//           count++;
+//       }else{
+//           break;
+//       }
+//   }
+//   return size - (size_t)count;
+// }
 
 QUERYNAME get_query_name_from_string(std::string name){
   if(name.compare("1") == 0) return SEARCH;
@@ -222,50 +222,6 @@ public:
   void handle_read_body(const boost::system::error_code& error, size_t bytes_transferred)
   {
     if(!error){
-      // Json::Value jval;
-      // Json::Reader jsonReader;
-      // body_length += read_msg_.body_length();
-      // char *ret;
-      // if((body != NULL) && (body[0] == '\0'))
-      // {
-      //   std::cout << "body_length before :" << body_length << std::endl;
-      //   ret = (char *)malloc(body_length * sizeof(char));
-      //   strcpy(ret, read_msg_.body());
-      //   body = get_json_value(ret, body_length);
-      //   body_length = get_size_original(ret, body_length);
-      //   std::cout << "body_length after :" << body_length << std::endl;
-      //   bool parsingSuccessful = jsonReader.parse(body, jval);
-      //   if(!parsingSuccessful)
-      //   {
-      //     boost::asio::async_read(socket_, boost::asio::buffer(read_msg_.body(), read_msg_.body_length()),
-      //     boost::bind(&chat_session::handle_read_body, shared_from_this(),
-      //       boost::asio::placeholders::error,
-      //       boost::asio::placeholders::bytes_transferred));
-      //   }
-      //   else
-      //   {
-
-      //   }
-      // }else{
-      //   // std::cout << "body_length :" << body_length << std::endl;
-      //   char *new_val = new char[body_length];
-      //   std::move(body, body + read_msg_.body_length(), new_val);
-      //   delete[] body;
-      //   body = new_val;
-      //   strcat(body, read_msg_.body());
-      //   bool parsingSuccessful = jsonReader.parse(body, jval);
-      //   if(!parsingSuccessful)
-      //   {
-      //     boost::asio::async_read(socket_, boost::asio::buffer(read_msg_.body(), read_msg_.body_length()),
-      //     boost::bind(&chat_session::handle_read_body, shared_from_this(),
-      //       boost::asio::placeholders::error,
-      //       boost::asio::placeholders::bytes_transferred));
-      //   }
-      //   else
-      //   {
-      //     std::cout << body << std::endl;
-      //   }
-      // }
     
       Json::Value jval;
       Json::Reader jsonReader;
@@ -274,6 +230,7 @@ public:
 
       std::cout << "bytes_transferred : " <<bytes_transferred<<std::endl;
       char *ret = get_json_value(read_msg_.body(), read_msg_.body_length());
+      std::cout << ret << std::endl;
       bool parsingSuccessful = jsonReader.parse(ret, jval); // parse process
       if (!parsingSuccessful) {
           std::cout << "Failed to parse" << jsonReader.getFormattedErrorMessages();
@@ -396,10 +353,10 @@ public:
 
           std::cout << "w, h, d, t, s : " << w << "," << h << "," << d << ","<< t << "," << s << "," << std::endl;
           cv::Mat mat_el = cv::Mat(h, w, t, content_unsigned);
-          namedWindow( "Display window", WINDOW_AUTOSIZE );
-          imshow("Display window", mat_el);
-          waitKey(0);
-          destroyAllWindows();
+          // namedWindow( "Display window", WINDOW_AUTOSIZE );
+          // imshow("Display window", mat_el);
+          // waitKey(0);
+          // destroyAllWindows();
           imgVector.push_back(mat_el);
         }
         json_res["engineId"] = engineId;

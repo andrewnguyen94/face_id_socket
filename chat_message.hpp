@@ -10,6 +10,7 @@
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgcodecs/imgcodecs.hpp"
 #include "jsoncpp/json/json.h"
+#include "base64.h"
 
 using namespace std;
 using namespace cv;
@@ -26,7 +27,7 @@ class chat_message
 {
 public:
   enum { header_length = 7 };
-  enum { max_body_length = 0xA0000 };
+  enum { max_body_length = 0x1FFFFF };
 
   chat_message()
     : body_length_(0)
@@ -229,8 +230,8 @@ private:
 class image
 {
 public:
-  image(int w, int h, int d, int t, int st)
-    : width(w), height(h), dim(d), type(t), step(st)
+  image(int w, int h, int d, int t, int st, size_t s)
+    : width(w), height(h), dim(d), type(t), step(st), size(s)
   {
 
   }
@@ -296,17 +297,36 @@ public:
     return data;
   }
 
+  void set_size(size_t s)
+  {
+    size = s;
+  }
+
+  size_t get_size()
+  {
+    return size;
+  }
+
   Json::Value parse_image_to_json()
   {
     Json::Value val;
-    val["width"] = get_width();
-    val["height"] = get_height();
-    val["dim"] = get_dim();
-    val["type"] = get_type();
-    val["step"] = get_step();
-    std::string data_str(reinterpret_cast<char*>(get_data()));
-    val["content"] = data_str;
+    // val["content"] = data_str;
+    std::stringstream ss;
+    int w = get_width();
+    int h = get_height();
+    int t = get_type();
+    size_t s = get_size();
 
+    val["width"] = w;
+    val["height"] = h;
+    val["dim"] = get_dim();
+    val["type"] = t;
+    val["step"] = get_step();
+    ss.write((char*)(&s), sizeof(size_t));
+
+    ss.write((char*)get_data(), size);
+
+    val["content"] = ss.str();
     return val;
   }
 
@@ -317,7 +337,7 @@ private:
   int dim;
   int step;
   int type;
-
+  size_t size;
 };
 
 class request
@@ -427,7 +447,8 @@ public:
       Json::Value j_tmp;
       std::string key = "image_";
       for(size_t i = 0; i < cv.size(); ++i){
-        image *img = new image(cv[i].cols, cv[i].rows, cv[i].channels(), cv[i].type(), cv[i].step);
+        size_t size_orig = cv[i].total() * cv[i].elemSize();
+        image *img = new image(cv[i].cols, cv[i].rows, cv[i].channels(), cv[i].type(), cv[i].step, size_orig);
         size_t size = (size_t)(cv[i].cols * cv[i].rows * cv[i].channels());
         img->set_data(cv[i].data, size);
 
