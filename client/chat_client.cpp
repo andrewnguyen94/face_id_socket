@@ -46,6 +46,7 @@ QUERYNAME get_query_name_from_string(std::string name){
   else if(name.compare("3") == 0) return DELETE;
   else if(name.compare("4") == 0) return SEND;
   else if(name.compare("5") == 0) return BRIGHTNESS;
+  else if(name.compare("6") == 0) return PUSH_BRIGHTNESS;
   else{
     std::cout << "query name not found!" << std::endl;
     exit(0);
@@ -74,10 +75,10 @@ public:
 
   void write(const chat_message& msg)
   {
-    set_timer(boost::posix_time::microsec_clock::universal_time() + boost::posix_time::seconds(1),
-      boost::bind(&chat_client::do_write, this, msg, boost::asio::placeholders::error));
-    // io_service_.post(boost::bind(&chat_client::do_write, this, msg));
-    io_service_.run();
+    // set_timer(boost::posix_time::microsec_clock::universal_time() + boost::posix_time::seconds(1),
+    //   boost::bind(&chat_client::do_write, this, msg, boost::asio::placeholders::error));
+    io_service_.post(boost::bind(&chat_client::do_write, this, msg));
+    // io_service_.run();
   }
 
   void close()
@@ -154,6 +155,7 @@ public:
     std::string lineSend = jval.toStyledString();
 
     msg.body_length(lineSend.length());
+    std::cout << "msg body_length : " << msg.body_length() << std::endl;
     memcpy(msg.body(), lineSend.c_str(), msg.body_length());
     msg.encode_header();
     write(msg);
@@ -176,6 +178,41 @@ public:
     wait_for_response();
   }
 
+  void push_brightness_to_server(int message_id, int brightness)
+  {
+    chat_message msg;
+    Json::Value jval;
+    wait_for_get_engine_id();
+    int engineId = get_engine_Id();
+    request *req = new request(engineId, message_id, PUSH_BRIGHTNESS);
+    req->set_brightness(brightness);
+    jval = req->parse_request_to_json();
+    std::string lineSend = jval.toStyledString();
+    msg.body_length(lineSend.length());
+    memcpy(msg.body(), lineSend.c_str(), msg.body_length());
+    msg.encode_header();
+    write(msg);
+    wait_for_response();
+  }
+
+  void search_closest_faces(int message_id, std::vector<float> content_search, int number_of_vectors_request)
+  {
+    chat_message msg;
+    Json::Value jval;
+    wait_for_get_engine_id();
+    int engineId = get_engine_Id();
+    request *req = new request(engineId, message_id, SEARCH);
+    req->set_number_of_vectors_request(number_of_vectors_request);
+    req->set_content_vec(content_search);
+    jval = req->parse_request_to_json();
+    std::string lineSend = jval.toStyledString();
+    msg.body_length(lineSend.length());
+    memcpy(msg.body(), lineSend.c_str(), msg.body_length());
+    msg.encode_header();
+    write(msg);
+    wait_for_response();
+  }
+
 private:
 
   void handle_connect(const boost::system::error_code& error)
@@ -188,7 +225,6 @@ private:
             boost::asio::placeholders::error));
     }else
     {
-      std::cout << error << std::endl;
       exit(0);
     }
   }
@@ -204,7 +240,6 @@ private:
     }
     else
     {
-      std::cout << error << std::endl;
       do_close();
     }
   }
@@ -247,8 +282,9 @@ private:
           ss << key << "_" << ssi.str();
           std::string key_el = ss.str();
           Json::Value v = contentResponse[key_el];
-          int id = v["id"].asInt();
+          std::string id = v["id"].asString();
           std::string content_string = v["content"].asString();
+          std::string name = v["name"].asString();
           std::stringstream ssv(content_string);
           float number;
           std::vector<float> content;
@@ -257,6 +293,7 @@ private:
             content.push_back(number);
           }
           Pair *p = new Pair(id, content);
+          p->set_face_name(name);
           vector_p.push_back(*p);
 
         }
@@ -300,6 +337,7 @@ private:
         resp->set_engine_id(engine_id);
         resp->set_mes_id(mes_id);
         resp->set_content(contentResponse);
+
         set_response(*resp);
         set_flag(true);
       }
@@ -311,6 +349,18 @@ private:
         resp->set_engine_id(engine_id);
         resp->set_mes_id(mes_id);
         resp->set_brightness(contentResponse);
+        set_response(*resp);
+        set_flag(true);
+      }
+      else if(queryName == PUSH_BRIGHTNESS)
+      {
+        int mes_id = jsonValue["mes_id"].asInt();
+        int engine_id = jsonValue["engineId"].asInt();
+        std::string contentResponse = jsonValue["responseContent"].asString();
+        resp->set_engine_id(engine_id);
+        resp->set_mes_id(mes_id);
+        resp->set_content(contentResponse);
+        std::cout << "contentResponse :" << contentResponse << std::endl;
         set_response(*resp);
         set_flag(true);
       }
@@ -326,9 +376,8 @@ private:
     }
   }
 
-  void do_write(chat_message msg, const boost::system::error_code& error)
+  void do_write(chat_message msg)
   {
-    std::cout << "dcm" << std::endl;
     bool write_in_progress = !write_msgs_.empty();
     write_msgs_.push_back(msg);
     if (!write_in_progress)
@@ -408,39 +457,29 @@ int main(int argc, char* argv[])
 
     int message_id = 0;
     std::vector<float> v_req;
-    for(int i = 0; i < 128; ++i){
-      float ele = (float) i;
-      v_req.push_back(ele);
+    std::string vector_str = "-0.12588 0.145605 0.0612512 0.021806 -0.0539667 -0.0167877 -0.0422762 -0.136958 0.156892 -0.0498365 0.242933 -0.0189076 -0.205557 -0.139949 0.00934789 0.0982862 -0.204675 -0.176596 -0.00246833 -0.0230572 0.150514 -0.0162264 0.0575154 0.00912343 -0.240553 -0.326662 -0.0786249 -0.146404 0.00839708 -0.0305699 -0.0846974 -0.0371725 -0.237279 -0.115487 0.00491643 0.0386038 0.0127023 -0.0545972 0.183566 -0.0418008 -0.175711 -0.0118175 0.0508087 0.257534 0.138337 0.0299526 0.0282778 -0.10691 0.111127 -0.124791 0.0955359 0.169931 0.0911321 0.0144956 0.067949 -0.0991931 0.0229642 0.0917953 -0.1718 0.043487 0.0793465 -0.0046594 -0.0278172 -0.0457467 0.173969 0.0735607 -0.0223107 -0.20668 0.101049 -0.0881511 -0.0907413 0.0849444 -0.183887 -0.191998 -0.333641 -0.00940656 0.403201 0.0561405 -0.212871 0.0479829 -0.0624894 -0.0344558 0.186586 0.0768432 0.00817938 0.0551326 -0.175503 0.0667851 0.231384 -0.0710716 -0.0763211 0.169907 0.0238278 -0.0220806 0.0717712 0.0385832 -0.0961652 0.0660534 -0.174015 -0.0369121 0.0962858 0.0413359 -0.0463808 0.130266 -0.132869 -0.0016307 0.0453584 -0.0234381 -0.0342149 -0.064769 -0.165772 -0.112658 0.0856344 -0.215222 0.149355 0.136477 0.000701869 0.0892593 0.0473727 0.0154274 -0.00157596 0.0242948 -0.196107 -0.034731 0.0962107 0.0205367 0.0882704 -0.00928565";
+    float f;
+    std::stringstream vector_stream(vector_str);
+    while(vector_stream >> f)
+    {
+      v_req.push_back(f); 
     }
+    std::cout << "v_req" << v_req[2] << std::endl;
     std::vector<cv::Mat> src;
     cv::Mat img = imread("/home/anhnt/Pictures/test.png", CV_LOAD_IMAGE_COLOR);
     src.push_back(img);
-    c.push_image_to_server(src, "test", message_id);
+    // c.push_image_to_server(src, "test", message_id);
     // c.get_brightness_from_server(message_id);
-    // response res = c.get_response();
-    // int current_brightness = res.get_brightness();
-    // std::cout << "current_brightness :" << current_brightness << std::endl;
-    // for(int i = 0; i < 1000; ++i){
-    //   chat_message msg;
-    //   Json::Value jval;
-      
-    //   c.wait_for_get_engine_id();
-    //   request *req = new request(c.get_engine_Id(), message_id, SEARCH);
-    //   req->set_number_of_vectors_request(10);
-    //   req->set_content_vec(v_req);
-    //   message_id ++;
-    //   jval = req->parse_request_to_json();
-
-    //   std::string lineSend = jval.toStyledString();
-
-    //   msg.body_length(lineSend.length());
-    //   memcpy(msg.body(), lineSend.c_str(), msg.body_length());
-    //   std::cout << "length" << msg.body_length() << std::endl;
-    //   msg.encode_header();
-    //   c.write(msg);
-    //   c.wait_for_response();
-    // }
-
+    c.search_closest_faces(message_id, v_req, 10);
+    response res = c.get_response();
+    std::vector<Pair> search_content = res.get_result_res();
+    for(size_t i = 0; i < search_content.size(); ++i){
+      std::string faceid = search_content[i].get_face_id();
+      std::string faceid_name = search_content[i].get_face_name();
+      std::cout << "faceid : " << faceid << std::endl;
+      std::cout << "faceid_name : " << faceid_name <<std::endl;
+    }
+    
     c.close();
     t.join();
   }

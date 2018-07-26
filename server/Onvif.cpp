@@ -91,17 +91,38 @@ string OnvifController::post(string content)
     return respondContent;
 }
 
+std::string ValueOrEmpty(const char* s)
+{
+    if(s == nullptr)
+    {
+
+        return std::string();
+    }
+    else
+    {
+        return s;
+    }
+}
+
 int OnvifController::getBrightness()
 {
     string imgSettings = "<GetImagingSettings xmlns=\"http://www.onvif.org/ver20/imaging/wsdl\"><VideoSourceToken  xmlns=\"http://www.onvif.org/ver20/imaging/wsdl\">VideoSource0</VideoSourceToken></GetImagingSettings>";
     string cmd = "<s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:a=\"http://www.w3.org/2005/08/addressing\"><s:Header><Security s:mustUnderstand=\"1\" xmlns=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\"><UsernameToken><Username>"+UserCameraAddress+"</Username><Password Type=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest\">"+PassCameraAddress+"</Password><Nonce EncodingType=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary\">" + cameraToken + "</Nonce><Created xmlns=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\"></Created></UsernameToken></Security></s:Header><s:Body xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">" + imgSettings + "</s:Body></s:Envelope>";
     const char* respond = post(cmd).c_str();
+    std::cout << "respond :" << post(cmd) << std::endl;
     XMLNode xMainNode;
     XMLResults xe;
     xMainNode=XMLNode::parseString(respond,NULL,&xe);
-    string bri = xMainNode.getChildNodeByPath("SOAP-ENV:Envelope/SOAP-ENV:Body/timg:GetImagingSettingsResponse/timg:ImagingSettings/tt:Brightness").getText();
-    //cout << "resond" << respond << endl;
-    return std::stoi(bri);
+    std::string bri = ValueOrEmpty(xMainNode.getChildNodeByPath("SOAP-ENV:Envelope/SOAP-ENV:Body/timg:GetImagingSettingsResponse/timg:ImagingSettings/tt:Brightness").getText());
+    if(!bri.empty())
+    {
+        return std::stoi(bri);    
+    }
+    else
+    {
+        return -1;
+    }
+    
 }
 int OnvifController::getContrast()
 {

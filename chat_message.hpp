@@ -6,6 +6,7 @@
 #include <cstring>
 #include <string.h>
 #include <sstream>
+#include <iostream>
 #include <opencv2/core.hpp>
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgcodecs/imgcodecs.hpp"
@@ -21,14 +22,15 @@ typedef enum QUERYNAME{
   ADD,
   DELETE,
   SEND,
-  BRIGHTNESS
+  BRIGHTNESS,
+  PUSH_BRIGHTNESS
 }QUERYNAME;
 
 class chat_message
 {
 public:
   enum { header_length = 7 };
-  enum { max_body_length = 0x1FFFFF };
+  enum { max_body_length = 0xFFFFFF };
 
   chat_message()
     : body_length_(0)
@@ -70,6 +72,8 @@ public:
     body_length_ = new_length;
     if (body_length_ > max_body_length)
       body_length_ = max_body_length;
+    delete[] data_;
+    data_ = new char[body_length_ + header_length];
   }
 
   bool decode_header()
@@ -95,14 +99,14 @@ public:
   }
 
 private:
-  char data_[header_length + max_body_length];
+  char *data_ = new char[header_length + max_body_length];
   size_t body_length_;
 };
 
 class Pair
 {
 public:
-  Pair(int face_id, std::vector<float> vector_content)
+  Pair(std::string face_id, std::vector<float> vector_content)
     :face_id(face_id), vector_content(vector_content)
   {
 
@@ -112,12 +116,12 @@ public:
     
   }
 
-  void set_face_id(int face_id)
+  void set_face_id(std::string face_id)
   {
     face_id = face_id;
   }
 
-  int get_face_id()
+  std::string get_face_id()
   {
     return face_id;
   }
@@ -134,9 +138,23 @@ public:
     return vector_content;
   }
 
+  void set_face_name(std::string name)
+  {
+    face_name = name;
+  }
+
+  std::string get_face_name()
+  {
+    return face_name;
+  }
+
   Json::Value parse_content_to_json(){
     Json::Value val;
     val["id"] = get_face_id();
+    if(!get_face_name().empty())
+    {
+      val["name"] = get_face_name();
+    }
     std::vector<float> tmp = get_content_vec();
     std::ostringstream oss;
     std::copy(tmp.begin(), tmp.end() - 1, std::ostream_iterator<float>(oss, " "));
@@ -146,8 +164,9 @@ public:
     return val;
   }
 private:
-  int face_id;
+  std::string face_id;
   std::vector<float> vector_content;
+  std::string face_name;
 };
 
 class response
@@ -443,6 +462,16 @@ public:
     return number_of_image_request;
   }
 
+  void set_brightness(int br)
+  {
+    brightness = br;
+  }
+
+  int get_brightness()
+  {
+    return brightness;
+  }
+
   Json::Value parse_request_to_json()
   {
     Json::Value jval;
@@ -481,6 +510,10 @@ public:
         oss << cv.back();
         jval["contentVec"] = oss.str();      
       }
+      if(queryName == PUSH_BRIGHTNESS)
+      {
+        jval["brightness"] = get_brightness();
+      }
     }
     return jval;
   }
@@ -495,6 +528,7 @@ private:
   std::vector<cv::Mat> image_vec;
   int number_of_image_request;
   int number_of_vectors_request;
+  int brightness;
 };
 
 #endif // CHAT_MESSAGE_HPP

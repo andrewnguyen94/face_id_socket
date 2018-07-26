@@ -19,7 +19,7 @@
 #include "../utils.h"
 #include "IOData.h"
 #include "Onvif.h"
-// #include "bucket_sort2d.cuh"
+#include "bucket_sort2d.cuh"
 
 
 using boost::asio::ip::tcp;
@@ -54,24 +54,6 @@ char *get_json_value(char *val, size_t size){
   return ret;
 }
 
-// size_t get_size_original(char *val, size_t size)
-// {
-//   int count = 0;
-//   int count_ret = 0;
-//   char *ret;
-//   char s;
-//   char key = '{';
-//   for(size_t i = 0; i < size; ++i){
-//       s = val[i];
-//       if(s != '{') {
-//           count++;
-//       }else{
-//           break;
-//       }
-//   }
-//   return size - (size_t)count;
-// }
-
 QUERYNAME get_query_name_from_string(std::string name){
   if(name.compare("1") == 0) return SEARCH;
   else if(name.compare("0") == 0) return ENGINEID;
@@ -79,6 +61,7 @@ QUERYNAME get_query_name_from_string(std::string name){
   else if(name.compare("3") == 0) return DELETE;
   else if(name.compare("4") == 0) return SEND;
   else if(name.compare("5") == 0) return BRIGHTNESS;
+  else if(name.compare("6") == 0) return PUSH_BRIGHTNESS;
   else{
     std::cout << "query name not found!" << std::endl;
     exit(0);
@@ -160,15 +143,23 @@ class chat_session
     public boost::enable_shared_from_this<chat_session>
 {
 public:
-  chat_session(boost::asio::io_service& io_service, chat_room& room)
+  chat_session(boost::asio::io_service& io_service, chat_room& room, std::vector<PersonInfo> personDatas)
     : socket_(io_service),
       room_(room)
   {
+    set_personDatas(personDatas);
   }
 
   tcp::socket& socket()
   {
     return socket_;
+  }
+
+  void set_personDatas(std::vector<PersonInfo> p)
+  {
+    std::vector<PersonInfo>::iterator it;
+    it = p.begin();
+    personDatas.assign(it, p.end());
   }
 
   void start()
@@ -205,15 +196,6 @@ public:
         boost::bind(&chat_session::handle_read_body, shared_from_this(),
             boost::asio::placeholders::error,
             boost::asio::placeholders::bytes_transferred));
-      // boost::asio::async_read_some(socket_,
-      //     boost::asio::buffer(read_msg_.body(), read_msg_.body_length()),
-      //     boost::bind(&chat_session::handle_read_body, shared_from_this(),
-      //       boost::asio::placeholders::error,
-      //       boost::asio::placeholders::bytes_transferred));
-      // boost::asio::async_read(socket_,
-      //         b, boost::bind(&chat_session::handle_read_body, shared_from_this(),
-      //           boost::asio::placeholders::error,
-      //           boost::asio::placeholders::bytes_transferred));
     }
     else
     {
@@ -251,31 +233,18 @@ public:
         }
 
         // thuc hien cau query de search vector va face id o day
-
-        // gia lap vector tra ve
-        std::vector<Pair> contentResponse;
-        std::vector<float> res_vec;
-        for(int i = 0; i < 128; ++i){
-          float ele = (float) i;
-          res_vec.push_back(ele);
-        }
-        //
-        for(int i = 0; i < number_of_vector_request; ++i){
-          int id = i;
-          Pair *p = new Pair(id, res_vec);
-          contentResponse.push_back(*p);
-        }
-        //
+        
+        std::vector<Pair> contentResponse = get_search_query(content, personDatas, number_of_vector_request);
+        std::cout << "contentResponse size :" << contentResponse.size() << std::endl;
         //xu ly contentResponse
         Json::Value result;
         std::string key = "Pair";
-        for(int i = 0; i < number_of_vector_request; ++i){
+        for(size_t i = 0; i < contentResponse.size(); ++i){
           std::stringstream ss;
           std::ostringstream ssi;
           ssi << i;
           ss << key << "_" << ssi.str();
           std::string key_el = ss.str();
-
           Json::Value val_tmp = contentResponse[i].parse_content_to_json();
           result[key_el] = val_tmp;
         }
@@ -328,7 +297,6 @@ public:
         std::vector<cv::Mat> imgVector;
         Json::Value contentVec = jval["contentVec"];
         int number_of_image_request = jval["noi"].asInt();
-        std::cout << "number_of_image_request: " << number_of_image_request << std::endl;
 
         std::string key = "image_";
 
@@ -346,16 +314,14 @@ public:
           int t = val["type"].asInt();
           int s = val["step"].asInt();
           std::string content = val["content"].asString();
-          char *content_char = new char[content.length() + 1];
-          strcpy(content_char, content.c_str());
-          unsigned char *content_unsigned = reinterpret_cast<unsigned char*>(content_char);
+          size_t size = 0;
+          std::stringstream content_stream(content);
+          content_stream.read((char *)(&size), sizeof(size_t));
+          char *content_char = new char[size];
+          content_stream.read(content_char, size);
 
           std::cout << "w, h, d, t, s : " << w << "," << h << "," << d << ","<< t << "," << s << "," << std::endl;
-          cv::Mat mat_el = cv::Mat(h, w, t, content_unsigned);
-          // namedWindow( "Display window", WINDOW_AUTOSIZE );
-          // imshow("Display window", mat_el);
-          // waitKey(0);
-          // destroyAllWindows();
+          cv::Mat mat_el = cv::Mat(h, w, t, content_char);
           imgVector.push_back(mat_el);
         }
         json_res["engineId"] = engineId;
@@ -365,10 +331,11 @@ public:
       }
       else if(queryName == BRIGHTNESS)
       {
-        IOData *ioData = new IOData();
-        std::string IPCameraAddress = ioData->GetCongfigData("IPCameraAddress:").c_str();
-        OnvifController onvifController(IPCameraAddress+":2000");
-        // OnvifController onvifController("10.12.11.149:8999"); // Cam a Tuc
+        // IOData *ioData = new IOData();
+        // std::string IPCameraAddress = ioData->GetCongfigData("IPCameraAddress:").c_str();
+        // OnvifController onvifController(IPCameraAddress+":2000");
+        // std::cout << "IPCameraAddress :" << IPCameraAddress << std::endl;
+        OnvifController onvifController("10.13.11.146:2000"); // Cam a Tuc
         int current_brightness = 0;
         current_brightness = onvifController.getBrightness();
         std::cout << "current_brightness" << current_brightness << std::endl;
@@ -376,6 +343,18 @@ public:
         json_res["mes_id"] = mes_id;
         json_res["queryName"] = queryName;
         json_res["responseContent"] = current_brightness;
+      }
+      else if(queryName == PUSH_BRIGHTNESS)
+      {
+        std::string success = "push done";
+        int brightness_set = jval["brightness"].asInt();
+
+        //xu ly brightness o day
+
+        json_res["engineId"] = engineId;
+        json_res["mes_id"] = mes_id;
+        json_res["queryName"] = queryName;
+        json_res["responseContent"] = success;        
       }
       // xu ly doan query o day
       //sau khi xu ly xong, nhan duoc du lieu
@@ -393,7 +372,6 @@ public:
     }
     else
     {
-      std::cout << error << std::endl;
       room_.leave(shared_from_this());
     }
   }
@@ -425,6 +403,7 @@ private:
   chat_message_queue write_msgs_;
   char *body = "";
   size_t body_length = 0;
+  std::vector<PersonInfo> personDatas;
 };
 
 typedef boost::shared_ptr<chat_session> chat_session_ptr;
@@ -435,16 +414,24 @@ class chat_server
 {
 public:
   chat_server(boost::asio::io_service& io_service,
-      const tcp::endpoint& endpoint)
+      const tcp::endpoint& endpoint, std::vector<PersonInfo> personDatas)
     : io_service_(io_service),
       acceptor_(io_service, endpoint)
   {
+    set_personDatas(personDatas);
     start_accept();
+  }
+
+  void set_personDatas(std::vector<PersonInfo> p)
+  {
+    std::vector<PersonInfo>::iterator it;
+    it = p.begin();
+    personDatas.assign(it, p.end());
   }
 
   void start_accept()
   {
-    chat_session_ptr new_session(new chat_session(io_service_, room_));
+    chat_session_ptr new_session(new chat_session(io_service_, room_, personDatas));
     acceptor_.async_accept(new_session->socket(),
         boost::bind(&chat_server::handle_accept, this, new_session,
           boost::asio::placeholders::error));
@@ -465,6 +452,7 @@ private:
   boost::asio::io_service& io_service_;
   tcp::acceptor acceptor_;
   chat_room room_;
+  std::vector<PersonInfo> personDatas;
 };
 
 typedef boost::shared_ptr<chat_server> chat_server_ptr;
@@ -491,7 +479,7 @@ int main(int argc, char* argv[])
     {
       using namespace std; // For atoi.
       tcp::endpoint endpoint(tcp::v4(), atoi(argv[i]));
-      chat_server_ptr server(new chat_server(io_service, endpoint));
+      chat_server_ptr server(new chat_server(io_service, endpoint, personDatas));
       servers.push_back(server);
     }
 

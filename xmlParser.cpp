@@ -67,6 +67,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <wchar.h>
 
 XMLCSTR XMLNode::getVersion() { return _CXML("v2.44"); }
 void freeXMLString(XMLSTR t){if(t)free(t);}

@@ -5,6 +5,8 @@
 ------------------------------
 ------------------------------*/
 #include <algorithm>
+#include <cassert>
+#include <cstdio>
 #include <cstdlib>
 #include <deque>
 #include <iostream>
@@ -34,6 +36,16 @@ struct PersonInfo {
   std::string url;
   dlib::matrix<float, 0, 1> vec128; // vector 128
 };
+
+#define CHECK_ERROR(call)                                              \
+  do {                                                                 \
+    cudaError_t err = call;                                            \
+    if (err != cudaSuccess) {                                          \
+      fprintf(stderr, "CUDA error at %s %d: %s\n", __FILE__, __LINE__, \
+              cudaGetErrorString(err));                                \
+      exit(EXIT_FAILURE);                                              \
+    }                                                                  \
+  } while (0)                                                          \
 
 /*functions
 ------------------------------

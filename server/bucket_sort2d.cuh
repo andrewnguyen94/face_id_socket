@@ -37,12 +37,15 @@ using namespace std;
 ---------------------------
 ---------------------------*/
 
+#define CHUNK 16
+#define BLOCK_DIM 128
+#define GRID_DIM 128
 
 /*functions
 ---------------------------
 ---------------------------*/
 
 std::vector<Pair> get_search_query(std::vector<float> search_vector,
- 									std::vector<PersonInfo> personDatas);
+ 									std::vector<PersonInfo> personDatas, int number_of_vector_request);
 
 #endif //end bucket_sort2d
